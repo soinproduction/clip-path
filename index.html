@@ -11,7 +11,7 @@
     <section class="panel stage">
       <header class="stage__head">
         <h1>CSS Mask Builder</h1>
-        <p>Срезы и скругления задаются в пикселях. Размер карточки берётся от реального контента.</p>
+        <p>Срезы и скругления задаются в rem. Размер карточки берётся от реального контента.</p>
       </header>
 
       <div class="preview">
@@ -24,49 +24,124 @@
         </article>
       </div>
 
-      <div class="shape-switch" role="tablist" aria-label="Фигура">
-        <button class="shape-btn is-active" type="button" data-shape="tl-br">TL + BR</button>
-        <button class="shape-btn" type="button" data-shape="tl">TL</button>
-        <button class="shape-btn" type="button" data-shape="tr">TR</button>
-        <button class="shape-btn" type="button" data-shape="br">BR</button>
-        <button class="shape-btn" type="button" data-shape="bl">BL</button>
-        <button class="shape-btn" type="button" data-shape="tr-bl">TR + BL</button>
-        <button class="shape-btn" type="button" data-shape="all">All</button>
-      </div>
+      <section class="corner-editor" aria-label="Редактор углов">
+        <h3>1. Выберите угол</h3>
+        <div class="corner-tabs">
+          <button class="corner-tab is-active" type="button" data-select-corner="tl" title="Top Left">
+            <span class="corner-chip corner-chip--tl"></span>
+          </button>
+          <button class="corner-tab" type="button" data-select-corner="tr" title="Top Right">
+            <span class="corner-chip corner-chip--tr"></span>
+          </button>
+          <button class="corner-tab" type="button" data-select-corner="br" title="Bottom Right">
+            <span class="corner-chip corner-chip--br"></span>
+          </button>
+          <button class="corner-tab" type="button" data-select-corner="bl" title="Bottom Left">
+            <span class="corner-chip corner-chip--bl"></span>
+          </button>
+        </div>
+
+        <h3>2. Режим выбранного угла</h3>
+        <div class="mode-picker">
+          <button class="mode-btn" type="button" data-mode-button="plain">
+            <span class="mode-icon mode-icon--plain"></span>
+            <span>Обычный</span>
+          </button>
+          <button class="mode-btn is-active" type="button" data-mode-button="chamfer">
+            <span class="mode-icon mode-icon--chamfer"></span>
+            <span>Срез</span>
+          </button>
+          <button class="mode-btn" type="button" data-mode-button="inverse">
+            <span class="mode-icon mode-icon--inverse"></span>
+            <span>Вырез</span>
+          </button>
+          <button class="mode-btn" type="button" data-mode-button="radial">
+            <span class="mode-icon mode-icon--radial"></span>
+            <span>Радиус</span>
+          </button>
+        </div>
+      </section>
     </section>
 
     <aside class="panel controls">
-      <h2>Параметры</h2>
+      <h2>Параметры маски</h2>
+
+      <section class="active-corner">
+        <span>Сейчас редактируется</span>
+        <strong id="activeCornerName">Верхний левый угол</strong>
+      </section>
 
       <label class="field">
-        <span>Скругление углов (px)</span>
-        <input id="corner" type="range" min="0" max="80" value="18">
-        <output id="cornerOut">18px</output>
+        <span>Общее внешнее скругление (rem)</span>
+        <input id="corner" type="range" min="0" max="20" step="0.1" value="1.8">
+        <output id="cornerOut">1.8rem</output>
       </label>
 
-      <label class="field">
-        <span>Срез угла (px)</span>
-        <input id="cut" type="range" min="0" max="140" value="42">
-        <output id="cutOut">42px</output>
-      </label>
+      <section class="mode-group mode-group--plain" data-mode-group="plain">
+        <p>Для обычного угла дополнительных параметров нет.</p>
+      </section>
 
-      <label class="field">
-        <span>Скругление среза (px)</span>
-        <input id="cutRound" type="range" min="0" max="70" value="10">
-        <output id="cutRoundOut">10px</output>
-      </label>
+      <section class="mode-group" data-mode-group="chamfer">
+        <h3>Параметры среза</h3>
+        <label class="field">
+          <span>Глубина среза (rem)</span>
+          <input id="cut" type="range" min="0" max="20" step="0.1" value="4.2">
+          <output id="cutOut">4.2rem</output>
+        </label>
+
+        <label class="field">
+          <span>Скругление среза (rem)</span>
+          <input id="cutRound" type="range" min="0" max="20" step="0.1" value="1">
+          <output id="cutRoundOut">1rem</output>
+        </label>
+      </section>
+
+      <section class="mode-group" data-mode-group="inverse">
+        <h3>Параметры обратного выреза</h3>
+        <label class="field">
+          <span>Глубина по X (rem)</span>
+          <input id="inverseDepthX" type="range" min="0" max="20" step="0.1" value="0">
+          <output id="inverseDepthXOut">0rem</output>
+        </label>
+
+        <label class="field">
+          <span>Глубина по Y (rem)</span>
+          <input id="inverseDepthY" type="range" min="0" max="20" step="0.1" value="0">
+          <output id="inverseDepthYOut">0rem</output>
+        </label>
+
+        <label class="field">
+          <span>Скругление внутреннего угла (rem)</span>
+          <input id="inverseInnerRound" type="range" min="0" max="20" step="0.1" value="0">
+          <output id="inverseInnerRoundOut">0rem</output>
+        </label>
+
+        <label class="field">
+          <span>Скругление внешних плеч выреза (rem)</span>
+          <input id="inverseOuterRound" type="range" min="0" max="20" step="0.1" value="0">
+          <output id="inverseOuterRoundOut">0rem</output>
+        </label>
+      </section>
+
+      <section class="mode-group" data-mode-group="radial">
+        <h3>Параметры радиального выреза</h3>
+        <label class="field">
+          <span>Радиус выреза (rem)</span>
+          <input id="radialRadius" type="range" min="0" max="20" step="0.1" value="0">
+          <output id="radialRadiusOut">0rem</output>
+        </label>
+      </section>
 
       <label class="field field-color">
         <span>Цвет превью</span>
         <input id="color" type="color" value="#63b7b8">
       </label>
 
-      <section class="code">
+      <section class="code code--compact">
         <div class="code__head">
-          <h3>CSS код</h3>
-          <button id="copyBtn" type="button">Копировать</button>
+          <button id="copyBtn" type="button">Копировать CSS</button>
         </div>
-        <pre><code id="codeOutput"></code></pre>
+        <pre hidden><code id="codeOutput"></code></pre>
       </section>
     </aside>
   </main>
