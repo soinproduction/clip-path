@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Mask Shape Builder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <section class="panel stage">
+      <header class="stage__head">
+        <h1>CSS Mask Builder</h1>
+        <p>Срезы и скругления задаются в пикселях. Размер карточки берётся от реального контента.</p>
+      </header>
+
+      <div class="preview">
+        <article id="previewCard" class="mask-card">
+          <div class="mask-card__content">
+            <div class="mask-card__ring" aria-hidden="true"></div>
+            <h2>Cyber Risks</h2>
+            <p>Высота зависит от контента. Углы, срезы и скругления применяются как CSS-маска.</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="shape-switch" role="tablist" aria-label="Фигура">
+        <button class="shape-btn is-active" type="button" data-shape="tl-br">TL + BR</button>
+        <button class="shape-btn" type="button" data-shape="tl">TL</button>
+        <button class="shape-btn" type="button" data-shape="tr">TR</button>
+        <button class="shape-btn" type="button" data-shape="br">BR</button>
+        <button class="shape-btn" type="button" data-shape="bl">BL</button>
+        <button class="shape-btn" type="button" data-shape="tr-bl">TR + BL</button>
+        <button class="shape-btn" type="button" data-shape="all">All</button>
+      </div>
+    </section>
+
+    <aside class="panel controls">
+      <h2>Параметры</h2>
+
+      <label class="field">
+        <span>Скругление углов (px)</span>
+        <input id="corner" type="range" min="0" max="80" value="18">
+        <output id="cornerOut">18px</output>
+      </label>
+
+      <label class="field">
+        <span>Срез угла (px)</span>
+        <input id="cut" type="range" min="0" max="140" value="42">
+        <output id="cutOut">42px</output>
+      </label>
+
+      <label class="field">
+        <span>Скругление среза (px)</span>
+        <input id="cutRound" type="range" min="0" max="70" value="10">
+        <output id="cutRoundOut">10px</output>
+      </label>
+
+      <label class="field field-color">
+        <span>Цвет превью</span>
+        <input id="color" type="color" value="#63b7b8">
+      </label>
+
+      <section class="code">
+        <div class="code__head">
+          <h3>CSS код</h3>
+          <button id="copyBtn" type="button">Копировать</button>
+        </div>
+        <pre><code id="codeOutput"></code></pre>
+      </section>
+    </aside>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
