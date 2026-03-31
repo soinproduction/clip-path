@@ -26,12 +26,19 @@ const activeCornerName = document.getElementById("activeCornerName");
 const cornerTabButtons = [...document.querySelectorAll("[data-select-corner]")];
 const modeButtons = [...document.querySelectorAll("[data-mode-button]")];
 const modeGroups = [...document.querySelectorAll("[data-mode-group]")];
+const codeTabButtons = [...document.querySelectorAll("[data-code-format]")];
 const codeOutput = document.getElementById("codeOutput");
 const copyBtn = document.getElementById("copyBtn");
-const copyDefaultLabel = copyBtn.textContent || "Копировать CSS";
+const resetBtn = document.getElementById("resetBtn");
+const appRoot = document.querySelector(".app");
+const controlsPanel = document.querySelector(".controls");
+const stackedLayoutQuery = window.matchMedia("(max-width: 108rem)");
 
 const CORNERS = ["tl", "tr", "br", "bl"];
 const MODES = ["plain", "chamfer", "inverse", "radial"];
+const CODE_FORMATS = ["css", "scss"];
+const DEFAULT_CODE_FORMAT = "css";
+const NO_CORNER_LABEL = "Не выбрано";
 const CORNER_LABELS = {
   tl: "Верхний левый угол",
   tr: "Верхний правый угол",
@@ -53,21 +60,75 @@ function createCornerState() {
   };
 }
 
-const state = {
+const DEFAULTS = {
   corner: Number(controls.corner.value),
   color: controls.color.value,
-  selectedCorner: "tl",
-  corners: {
-    tl: { ...createCornerState(), mode: "chamfer" },
-    tr: { ...createCornerState(), mode: "plain" },
-    br: { ...createCornerState(), mode: "chamfer" },
-    bl: { ...createCornerState(), mode: "plain" },
-  },
 };
+
+function createInitialState() {
+  return {
+    corner: DEFAULTS.corner,
+    color: DEFAULTS.color,
+    codeFormat: DEFAULT_CODE_FORMAT,
+    selectedCorner: null,
+    corners: {
+      tl: createCornerState(),
+      tr: createCornerState(),
+      br: createCornerState(),
+      bl: createCornerState(),
+    },
+  };
+}
+
+const state = createInitialState();
+
+const CORNER_INPUT_BINDINGS = [
+  [controls.cut, "cut"],
+  [controls.cutRound, "cutRound"],
+  [controls.inverseDepthX, "inverseDepthX"],
+  [controls.inverseDepthY, "inverseDepthY"],
+  [controls.inverseInnerRound, "inverseInnerRound"],
+  [controls.inverseOuterRound, "inverseOuterRound"],
+  [controls.radialRadius, "radialRadius"],
+];
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const formatRem = (value) => Number(value.toFixed(2)).toString();
 const formatCoef = (value) => Number(value.toFixed(8)).toString();
+let layoutFitFrame = 0;
+
+function fitPanelsToViewport() {
+  if (!appRoot || !controlsPanel) return;
+
+  const rootStyle = document.documentElement.style;
+  if (stackedLayoutQuery.matches) {
+    rootStyle.removeProperty("--tools-height");
+    rootStyle.removeProperty("--app-offsets-y");
+    rootStyle.removeProperty("--right-col-gap");
+    return;
+  }
+
+  const appStyles = window.getComputedStyle(appRoot);
+  const paddingTop = Number.parseFloat(appStyles.paddingTop) || 0;
+  const paddingBottom = Number.parseFloat(appStyles.paddingBottom) || 0;
+  const rowGap = Number.parseFloat(appStyles.rowGap || appStyles.gap) || 0;
+  const toolsHeight = controlsPanel.offsetHeight;
+
+  rootStyle.setProperty("--tools-height", `${toolsHeight}px`);
+  rootStyle.setProperty("--app-offsets-y", `${paddingTop + paddingBottom}px`);
+  rootStyle.setProperty("--right-col-gap", `${rowGap}px`);
+}
+
+function schedulePanelsFit() {
+  if (layoutFitFrame) {
+    window.cancelAnimationFrame(layoutFitFrame);
+  }
+
+  layoutFitFrame = window.requestAnimationFrame(() => {
+    layoutFitFrame = 0;
+    fitPanelsToViewport();
+  });
+}
 
 function cornerVar(name, corner) {
   return `var(--${name}-${corner})`;
@@ -373,13 +434,16 @@ function effectiveMode(corner) {
   return "plain";
 }
 
-function buildPolygon() {
-  const mode = {
+function getEffectiveModes() {
+  return {
     tl: effectiveMode("tl"),
     tr: effectiveMode("tr"),
     br: effectiveMode("br"),
     bl: effectiveMode("bl"),
   };
+}
+
+function buildPolygon(mode = getEffectiveModes()) {
 
   const points = [];
 
@@ -410,12 +474,12 @@ function buildPolygon() {
   return `polygon(\n    ${points.join(",\n    ")}\n  )`;
 }
 
-function cornerSummary(corner) {
-  return `${corner.toUpperCase()}=${state.corners[corner].mode}`;
+function cornerSummary(corner, modes) {
+  return `${corner.toUpperCase()}=${modes[corner]}`;
 }
 
-function modeSummary() {
-  return CORNERS.map(cornerSummary).join(", ");
+function modeSummary(modes) {
+  return CORNERS.map((corner) => cornerSummary(corner, modes)).join(", ");
 }
 
 function getCornerVariables(corner) {
@@ -450,6 +514,37 @@ function getCornerVariables(corner) {
   };
 }
 
+const MODE_VARIABLE_NAMES = {
+  plain: [],
+  chamfer: ["cut", "cut-round", "cx", "cy", "dx", "dy", "ux", "uy", "ax", "ay", "bx", "by"],
+  inverse: [
+    "inverse-depth-x",
+    "inverse-depth-y",
+    "inverse-inner-round",
+    "inverse-outer-round",
+    "idx",
+    "idy",
+    "iorx",
+    "iory",
+    "inrx",
+    "inry",
+  ],
+  radial: ["radial-radius", "radx", "rady"],
+};
+
+function getCornerVariablesByMode(corner, mode) {
+  const names = MODE_VARIABLE_NAMES[mode] || [];
+  if (!names.length) return [];
+
+  const all = getCornerVariables(corner);
+  return names
+    .map((name) => {
+      const variable = `--${name}-${corner}`;
+      return [variable, all[variable]];
+    })
+    .filter(([, value]) => value !== undefined);
+}
+
 function applyCornerVariables(element, corner) {
   const vars = getCornerVariables(corner);
   Object.entries(vars).forEach(([name, value]) => {
@@ -457,8 +552,20 @@ function applyCornerVariables(element, corner) {
   });
 }
 
+function getSelectedCornerSettings() {
+  if (!state.selectedCorner) return null;
+  return state.corners[state.selectedCorner];
+}
+
+function setPerCornerInputsDisabled(disabled) {
+  CORNER_INPUT_BINDINGS.forEach(([input]) => {
+    input.disabled = disabled;
+  });
+}
+
 function syncModeGroups() {
-  const mode = state.corners[state.selectedCorner].mode;
+  const selected = getSelectedCornerSettings();
+  const mode = selected ? selected.mode : "none";
   modeGroups.forEach((group) => {
     group.hidden = group.dataset.modeGroup !== mode;
   });
@@ -471,21 +578,35 @@ function syncCornerUi() {
     button.setAttribute("aria-pressed", String(isActive));
   });
 
-  const mode = state.corners[state.selectedCorner].mode;
+  const selected = getSelectedCornerSettings();
+  const mode = selected ? selected.mode : null;
   modeButtons.forEach((button) => {
+    button.disabled = !selected;
     const isActive = button.dataset.modeButton === mode;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
   });
 
-  activeCornerName.textContent = CORNER_LABELS[state.selectedCorner];
+  activeCornerName.textContent = selected ? CORNER_LABELS[state.selectedCorner] : NO_CORNER_LABEL;
   syncModeGroups();
+  schedulePanelsFit();
 }
 
 function updateOutputs() {
-  const selected = state.corners[state.selectedCorner];
-
   outputs.corner.textContent = `${formatRem(state.corner)}rem`;
+
+  const selected = getSelectedCornerSettings();
+  if (!selected) {
+    outputs.cut.textContent = "—";
+    outputs.cutRound.textContent = "—";
+    outputs.inverseDepthX.textContent = "—";
+    outputs.inverseDepthY.textContent = "—";
+    outputs.inverseInnerRound.textContent = "—";
+    outputs.inverseOuterRound.textContent = "—";
+    outputs.radialRadius.textContent = "—";
+    return;
+  }
+
   outputs.cut.textContent = `${formatRem(selected.cut)}rem`;
   outputs.cutRound.textContent = `${formatRem(selected.cutRound)}rem`;
   outputs.inverseDepthX.textContent = `${formatRem(selected.inverseDepthX)}rem`;
@@ -496,7 +617,14 @@ function updateOutputs() {
 }
 
 function syncInputsFromSelectedCorner() {
-  const selected = state.corners[state.selectedCorner];
+  const selected = getSelectedCornerSettings();
+  if (!selected) {
+    setPerCornerInputsDisabled(true);
+    updateOutputs();
+    return;
+  }
+
+  setPerCornerInputsDisabled(false);
 
   controls.cut.value = selected.cut;
   controls.cutRound.value = selected.cutRound;
@@ -522,14 +650,19 @@ function renderPreview() {
   previewCard.style.setProperty("--shape-clip", polygon);
 }
 
-function buildCssLines() {
+function buildCssLines(modes) {
   const lines = [];
 
   lines.push(`  --corner: ${formatRem(state.corner)}rem;`);
   CORNERS.forEach((corner) => {
-    const vars = getCornerVariables(corner);
-    lines.push(`  /* ${CORNER_LABELS[corner]} */`);
-    Object.entries(vars).forEach(([name, value]) => {
+    const mode = modes[corner];
+    if (mode === "plain") return;
+
+    const vars = getCornerVariablesByMode(corner, mode);
+    if (!vars.length) return;
+
+    lines.push(`  /* ${CORNER_LABELS[corner]} (${mode}) */`);
+    vars.forEach(([name, value]) => {
       lines.push(`  ${name}: ${value};`);
     });
   });
@@ -537,12 +670,23 @@ function buildCssLines() {
   return lines;
 }
 
-function updateCode() {
-  const polygon = buildPolygon();
-  const cssLines = buildCssLines();
+function getCopyDefaultLabel() {
+  return state.codeFormat === "scss" ? "Копировать SCSS" : "Копировать CSS";
+}
 
-  const code = [
-    `/* режимы углов: ${modeSummary()} */`,
+function syncCodeFormatUi() {
+  codeTabButtons.forEach((button) => {
+    const isActive = button.dataset.codeFormat === state.codeFormat;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  copyBtn.textContent = getCopyDefaultLabel();
+}
+
+function buildCssCode(modes, polygon, cssLines) {
+  return [
+    `/* режимы углов: ${modeSummary(modes)} */`,
     ".mask-card {",
     ...cssLines,
     `  --shape-clip: ${polygon};`,
@@ -566,14 +710,57 @@ function updateCode() {
     "  z-index: 1;",
     "}",
   ].join("\n");
+}
 
-  codeOutput.textContent = code;
+function buildScssCode(modes, polygon, cssLines) {
+  return [
+    `/* режимы углов: ${modeSummary(modes)} */`,
+    `$mask-fill: ${state.color};`,
+    "",
+    ".mask-card {",
+    ...cssLines,
+    `  --shape-clip: ${polygon};`,
+    "",
+    "  position: relative;",
+    "  border-radius: min(var(--corner), 48%);",
+    "  overflow: hidden;",
+    "",
+    "  &::before {",
+    '    content: "";',
+    "    position: absolute;",
+    "    inset: 0;",
+    "    background: $mask-fill;",
+    "    clip-path: var(--shape-clip);",
+    "    -webkit-clip-path: var(--shape-clip);",
+    "  }",
+    "",
+    "  > * {",
+    "    position: relative;",
+    "    z-index: 1;",
+    "  }",
+    "}",
+  ].join("\n");
+}
+
+function updateCode() {
+  const modes = getEffectiveModes();
+  const polygon = buildPolygon(modes);
+  const cssLines = buildCssLines(modes);
+
+  const codes = {
+    css: buildCssCode(modes, polygon, cssLines),
+    scss: buildScssCode(modes, polygon, cssLines),
+  };
+
+  codeOutput.textContent = codes[state.codeFormat] || codes.css;
+  syncCodeFormatUi();
 }
 
 function renderAll() {
   updateOutputs();
   renderPreview();
   updateCode();
+  schedulePanelsFit();
 }
 
 function ensureModeDefaults(corner) {
@@ -594,7 +781,7 @@ function ensureModeDefaults(corner) {
 }
 
 function setCornerMode(mode) {
-  if (!MODES.includes(mode)) return;
+  if (!MODES.includes(mode) || !state.selectedCorner) return;
 
   state.corners[state.selectedCorner].mode = mode;
   ensureModeDefaults(state.selectedCorner);
@@ -605,13 +792,38 @@ function setCornerMode(mode) {
   updateCode();
 }
 
-async function copyCode() {
-  const content = codeOutput.textContent || "";
+function setCodeFormat(format) {
+  if (!CODE_FORMATS.includes(format)) return;
+  state.codeFormat = format;
+  updateCode();
+  schedulePanelsFit();
+}
+
+function resetState() {
+  const initial = createInitialState();
+
+  state.corner = initial.corner;
+  state.color = initial.color;
+  state.codeFormat = initial.codeFormat;
+  state.selectedCorner = initial.selectedCorner;
+  CORNERS.forEach((corner) => {
+    state.corners[corner] = { ...initial.corners[corner] };
+  });
+
+  controls.corner.value = String(state.corner);
+  controls.color.value = state.color;
+
+  syncCornerUi();
+  syncInputsFromSelectedCorner();
+  renderAll();
+}
+
+async function copyText(content, onSuccessLabel, onResetLabel, targetButton) {
   if (!content) return;
 
   try {
     await navigator.clipboard.writeText(content);
-    copyBtn.textContent = "Скопировано";
+    targetButton.textContent = onSuccessLabel;
   } catch (_) {
     const textarea = document.createElement("textarea");
     textarea.value = content;
@@ -621,12 +833,17 @@ async function copyCode() {
     textarea.select();
     document.execCommand("copy");
     textarea.remove();
-    copyBtn.textContent = "Скопировано";
+    targetButton.textContent = onSuccessLabel;
   }
 
   window.setTimeout(() => {
-    copyBtn.textContent = copyDefaultLabel;
+    targetButton.textContent = onResetLabel();
   }, 900);
+}
+
+async function copyCode() {
+  const content = codeOutput.textContent || "";
+  await copyText(content, "Скопировано", getCopyDefaultLabel, copyBtn);
 }
 
 controls.corner.addEventListener("input", () => {
@@ -639,16 +856,9 @@ controls.color.addEventListener("input", () => {
   renderAll();
 });
 
-[
-  [controls.cut, "cut"],
-  [controls.cutRound, "cutRound"],
-  [controls.inverseDepthX, "inverseDepthX"],
-  [controls.inverseDepthY, "inverseDepthY"],
-  [controls.inverseInnerRound, "inverseInnerRound"],
-  [controls.inverseOuterRound, "inverseOuterRound"],
-  [controls.radialRadius, "radialRadius"],
-].forEach(([input, key]) => {
+CORNER_INPUT_BINDINGS.forEach(([input, key]) => {
   input.addEventListener("input", () => {
+    if (!state.selectedCorner) return;
     state.corners[state.selectedCorner][key] = Number(input.value);
     renderAll();
   });
@@ -659,7 +869,7 @@ cornerTabButtons.forEach((button) => {
     const corner = button.dataset.selectCorner;
     if (!CORNERS.includes(corner)) return;
 
-    state.selectedCorner = corner;
+    state.selectedCorner = state.selectedCorner === corner ? null : corner;
     syncCornerUi();
     syncInputsFromSelectedCorner();
   });
@@ -671,9 +881,24 @@ modeButtons.forEach((button) => {
   });
 });
 
+codeTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setCodeFormat(button.dataset.codeFormat);
+  });
+});
+
 copyBtn.addEventListener("click", copyCode);
+resetBtn.addEventListener("click", resetState);
+
+window.addEventListener("resize", schedulePanelsFit);
+if (typeof stackedLayoutQuery.addEventListener === "function") {
+  stackedLayoutQuery.addEventListener("change", schedulePanelsFit);
+} else if (typeof stackedLayoutQuery.addListener === "function") {
+  stackedLayoutQuery.addListener(schedulePanelsFit);
+}
 
 syncCornerUi();
 syncInputsFromSelectedCorner();
 renderPreview();
 updateCode();
+schedulePanelsFit();
